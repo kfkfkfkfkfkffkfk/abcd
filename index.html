@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Video Call</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            background: #1a1a1a; 
+            color: white; 
+            margin: 0;
+            padding: 20px;
+        }
+        #status { margin-bottom: 10px; color: #0f0; font-weight: bold; }
+        
+        .video-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 90%;
+            max-width: 1000px;
+            margin-top: 20px;
+        }
+        
+        video {
+            width: 100%;
+            background: #000;
+            border-radius: 10px;
+            border: 2px solid #444;
+            transform: scaleX(-1); /* Mirrors the local video */
+        }
+
+        #remote-video {
+            transform: scaleX(1); /* Don't mirror the friend's video */
+        }
+
+        .controls {
+            background: #333;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+
+        input { padding: 10px; border-radius: 5px; border: none; margin: 10px; width: 200px; }
+        button { 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            border: none; 
+            background: #3498db; 
+            color: white; 
+            cursor: pointer; 
+            font-weight: bold;
+        }
+        button:hover { background: #2980b9; }
+        .id-badge { color: #f1c40f; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+    <h2>Video Chat</h2>
+    <div id="status">Status: Initializing Camera...</div>
+    
+    <div class="controls">
+        <p>Your ID: <span id="my-id" class="id-badge">...</span></p>
+        <input type="text" id="remote-id" placeholder="Enter Friend's ID">
+        <button onclick="connectToFriend()">Call Friend</button>
+    </div>
+
+    <div class="video-container">
+        <div>
+            <p>You (Local)</p>
+            <video id="local-video" autoplay muted playsinline></video>
+        </div>
+        <div>
+            <p>Friend (Remote)</p>
+            <video id="remote-video" autoplay playsinline></video>
+        </div>
+    </div>
+
+    <script>
+        const peer = new Peer(); 
+        let localStream = null;
+
+        const localVideo = document.getElementById('local-video');
+        const remoteVideo = document.getElementById('remote-video');
+
+        // 1. Get Camera and Microphone access immediately
+        navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: true 
+        }).then(stream => {
+            localStream = stream;
+            localVideo.srcObject = stream;
+            document.getElementById('status').innerText = "Status: Camera Ready";
+        }).catch(err => {
+            console.error("Failed to get local stream", err);
+            document.getElementById('status').innerText = "Status: Error accessing camera";
+        });
+
+        // 2. Display your ID when PeerJS connects to the server
+        peer.on('open', (id) => {
+            document.getElementById('my-id').innerText = id;
+        });
+
+        // 3. Handle incoming calls
+        peer.on('call', (call) => {
+            // Automatically answer with your stream
+            call.answer(localStream);
+            handleCall(call);
+        });
+
+        // 4. Function to initiate a call
+        function connectToFriend() {
+            const friendId = document.getElementById('remote-id').value;
+            if (friendId) {
+                document.getElementById('status').innerText = "Status: Calling...";
+                const call = peer.call(friendId, localStream);
+                handleCall(call);
+            } else {
+                alert("Please enter a friend's ID first!");
+            }
+        }
+
+        // 5. Logic to handle the stream once connected
+        function handleCall(call) {
+            call.on('stream', (remoteStream) => {
+                remoteVideo.srcObject = remoteStream;
+                document.getElementById('status').innerText = "Status: Connected";
+            });
+
+            call.on('close', () => {
+                document.getElementById('status').innerText = "Status: Call Ended";
+            });
+        }
+    </script>
+</body>
+</html>

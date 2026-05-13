@@ -1,27 +1,23 @@
-<style>
-    /* ... existing variables ... */
-    #main-stage {
-        flex-grow: 1;
-        position: relative;
-        background: #111;
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        align-items: center;
-        gap: 10px;
-        padding: 20px;
-    }
+function handleVideo(call) {
+    // Check if we already have a video for this peer to avoid duplicates
+    if (document.getElementById(`video-${call.peer}`)) return;
 
-    /* This ensures remote videos actually show up and take space */
-    #main-stage video {
-        background: #222;
-        border-radius: 12px;
-        max-width: 100%;
-        max-height: 45vh; /* Prevents 2 videos from overflowing the screen height */
-        flex: 1 1 45%;    /* Allows videos to sit side-by-side */
-        object-fit: cover;
-    }
-</style>
+    const v = document.createElement('video');
+    v.id = `video-${call.peer}`; // Give it a unique ID
+    v.autoplay = true; 
+    v.playsInline = true;
+    
+    call.on('stream', remoteStream => {
+        v.srcObject = remoteStream;
+        mainStage.appendChild(v);
+        
+        // Store the connection
+        if (!connections[call.peer]) connections[call.peer] = {};
+        connections[call.peer].call = call;
+    });
 
-<div id="main-stage">
-    </div>
+    call.on('close', () => {
+        v.remove();
+        delete connections[call.peer];
+    });
+}

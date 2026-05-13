@@ -3,226 +3,280 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Video Call</title>
+    <title>Pro Video & Chat</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
-            --bg-color: #f8f9fa;
+            --bg: #ffffff;
+            --sidebar: #f2f2f7;
             --accent: #007aff;
-        }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: var(--bg-color);
-            margin: 0;
-            overflow: hidden; /* Prevent scrolling for the fullscreen feel */
-            height: 100vh;
+            --text: #1c1c1e;
         }
 
-        /* Fullscreen Remote Video Container */
-        #remote-videos-container {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
+        body, html { 
+            margin: 0; padding: 0; height: 100%; width: 100%;
+            font-family: -apple-system, system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* --- Video Layout --- */
+        #main-stage {
+            flex-grow: 1;
+            position: relative;
+            background: #111;
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(50%, 1fr));
-            background: #222;
         }
 
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            background: #333;
-        }
+        video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* FaceTime Style Local Preview (Draggable) */
+        /* FaceTime Draggable Mini Video */
         #local-container {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 180px;
-            aspect-ratio: 3/4;
+            top: 20px; right: 20px;
+            width: 150px; aspect-ratio: 3/4;
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
             z-index: 100;
             cursor: move;
-            border: 2px solid white;
             background: #000;
+            border: 2px solid rgba(255,255,255,0.2);
         }
-        #local-video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleX(-1);
-        }
+        #local-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
-        /* Controls Overlay */
-        .controls {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-            padding: 15px 25px;
-            border-radius: 50px;
+        /* --- Chat Sidebar --- */
+        #chat-sidebar {
+            width: 300px;
+            background: var(--sidebar);
             display: flex;
+            flex-direction: column;
+            border-left: 1px solid #d1d1d6;
+            transition: 0.3s;
+        }
+
+        #messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
             gap: 10px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            z-index: 1000;
         }
 
-        input { border: 1px solid #ccc; padding: 8px 15px; border-radius: 20px; outline: none; }
-        button { 
-            background: var(--accent); color: white; border: none; 
-            padding: 8px 18px; border-radius: 20px; cursor: pointer; font-weight: 600;
-            transition: 0.2s;
+        .msg {
+            padding: 8px 12px;
+            border-radius: 15px;
+            max-width: 80%;
+            font-size: 0.9rem;
+            word-wrap: break-word;
         }
-        button:hover { opacity: 0.8; }
-        button.secondary { background: #555; }
+        .msg.me { background: var(--accent); color: white; align-self: flex-end; }
+        .msg.them { background: #e5e5ea; color: black; align-self: flex-start; }
 
-        #status {
+        .chat-input-area {
+            padding: 15px;
+            background: var(--bg);
+            display: flex;
+            gap: 8px;
+            border-top: 1px solid #d1d1d6;
+        }
+
+        input[type="text"] {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 8px 15px;
+            outline: none;
+        }
+
+        /* --- Controls --- */
+        .toolbar {
             position: absolute;
-            top: 20px; left: 20px;
-            background: rgba(0,0,0,0.5);
-            color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.8rem;
+            bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            display: flex; gap: 10px;
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 30px;
+            z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        button {
+            border: none; background: var(--accent); color: white;
+            padding: 8px 16px; border-radius: 18px;
+            font-weight: 600; cursor: pointer; font-size: 0.85rem;
+        }
+        button.alt { background: #444; }
+
+        #status-bar {
+            position: absolute; top: 10px; left: 10px;
+            font-size: 0.7rem; color: #aaa; z-index: 10;
         }
     </style>
 </head>
 <body>
 
-    <div id="status">ID: <span id="my-id">...</span> | Status: Ready</div>
+<div id="status-bar">ID: <span id="my-id">...</span></div>
 
-    <div id="remote-videos-container">
-        </div>
-
-    <div id="local-container" onmousedown="dragElement(this)">
-        <video id="local-video" autoplay muted playsinline></video>
+<div id="main-stage">
     </div>
 
-    <div class="controls">
-        <input type="text" id="remote-id" placeholder="Friend's ID">
-        <button onclick="connectToFriend()">Call</button>
-        <button class="secondary" onclick="toggleScreenShare()" id="share-btn">Share Screen</button>
+<div id="local-container" onmousedown="dragElement(this)">
+    <video id="local-video" autoplay muted playsinline></video>
+</div>
+
+<div class="toolbar">
+    <input type="text" id="friend-id-input" placeholder="Enter ID">
+    <button onclick="startCall()">Connect</button>
+    <button class="alt" onclick="toggleScreen()">Screen Share</button>
+</div>
+
+<div id="chat-sidebar">
+    <div style="padding: 15px; font-weight: bold; border-bottom: 1px solid #ddd;">Group Chat</div>
+    <div id="messages"></div>
+    <div class="chat-input-area">
+        <input type="text" id="chat-msg" placeholder="Type a message...">
+        <button onclick="sendChatMessage()">Send</button>
     </div>
+</div>
 
-    <script>
-        const peer = new Peer();
-        let localStream;
-        let screenStream;
-        const peers = {}; // Keep track of all connections
+<script>
+    const peer = new Peer();
+    let myStream;
+    let myScreen;
+    const connections = {}; // Stores both Media (calls) and Data (chat)
 
-        const localVideo = document.getElementById('local-video');
-        const remoteContainer = document.getElementById('remote-videos-container');
+    const mainStage = document.getElementById('main-stage');
+    const localVideo = document.getElementById('local-video');
+    const msgInput = document.getElementById('chat-msg');
+    const msgContainer = document.getElementById('messages');
 
-        // 1. Initialize Camera
-        async function initCamera() {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                localVideo.srcObject = localStream;
-            } catch (err) {
-                console.error("Camera access denied", err);
+    // 1. Get Camera
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+        myStream = stream;
+        localVideo.srcObject = stream;
+    });
+
+    peer.on('open', id => document.getElementById('my-id').innerText = id);
+
+    // 2. Incoming Logic (Calls and Data)
+    peer.on('call', call => {
+        call.answer(myStream);
+        handleVideo(call);
+    });
+
+    peer.on('connection', conn => {
+        setupChat(conn);
+    });
+
+    // 3. Initiate Connection
+    function startCall() {
+        const targetId = document.getElementById('friend-id-input').value;
+        if (!targetId) return;
+
+        // Start Video Call
+        const call = peer.call(targetId, myStream);
+        handleVideo(call);
+
+        // Start Chat Connection
+        const conn = peer.connect(targetId);
+        setupChat(conn);
+    }
+
+    // 4. Video Management
+    function handleVideo(call) {
+        const v = document.createElement('video');
+        v.autoplay = true; v.playsInline = true;
+        call.on('stream', remoteStream => {
+            v.srcObject = remoteStream;
+            if (!connections[call.peer]) {
+                mainStage.appendChild(v);
+                connections[call.peer] = { call };
             }
-        }
-        initCamera();
+        });
+        call.on('close', () => v.remove());
+    }
 
-        peer.on('open', id => document.getElementById('my-id').innerText = id);
+    // 5. Chat Management
+    function setupChat(conn) {
+        if (!connections[conn.peer]) connections[conn.peer] = {};
+        connections[conn.peer].data = conn;
 
-        // 2. Answer Calls
-        peer.on('call', call => {
-            call.answer(localStream);
-            setupVideoFeed(call);
+        conn.on('data', data => {
+            appendMessage(data, 'them');
+        });
+    }
+
+    function sendChatMessage() {
+        const text = msgInput.value;
+        if (!text) return;
+
+        // Send to all connected peers
+        Object.values(connections).forEach(c => {
+            if (c.data) c.data.send(text);
         });
 
-        // 3. Make Call
-        function connectToFriend() {
-            const friendId = document.getElementById('remote-id').value;
-            if (!friendId) return alert("Enter ID");
-            const call = peer.call(friendId, localStream);
-            setupVideoFeed(call);
+        appendMessage(text, 'me');
+        msgInput.value = "";
+    }
+
+    function appendMessage(text, side) {
+        const div = document.createElement('div');
+        div.className = `msg ${side}`;
+        div.innerText = text;
+        msgContainer.appendChild(div);
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+    }
+
+    // 6. Screen Share
+    async function toggleScreen() {
+        if (!myScreen) {
+            myScreen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            const track = myScreen.getVideoTracks()[0];
+            localVideo.srcObject = myScreen;
+            updateTracks(track);
+            track.onended = () => toggleScreen();
+        } else {
+            const track = myStream.getVideoTracks()[0];
+            localVideo.srcObject = myStream;
+            updateTracks(track);
+            myScreen.getTracks().forEach(t => t.stop());
+            myScreen = null;
         }
+    }
 
-        // 4. Handle incoming and outgoing streams
-        function setupVideoFeed(call) {
-            const video = document.createElement('video');
-            video.autoplay = true;
-            video.playsInline = true;
-
-            call.on('stream', remoteStream => {
-                video.srcObject = remoteStream;
-                if (!peers[call.peer]) {
-                    remoteContainer.appendChild(video);
-                    peers[call.peer] = call;
-                }
-            });
-
-            call.on('close', () => {
-                video.remove();
-                delete peers[call.peer];
-            });
-        }
-
-        // 5. Screen Share Logic
-        async function toggleScreenShare() {
-            if (!screenStream) {
-                try {
-                    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                    const videoTrack = screenStream.getVideoTracks()[0];
-
-                    // Replace track for all active calls
-                    for (let peerId in peers) {
-                        const sender = peers[peerId].peerConnection.getSenders().find(s => s.track.kind === 'video');
-                        sender.replaceTrack(videoTrack);
-                    }
-                    
-                    localVideo.srcObject = screenStream;
-                    document.getElementById('share-btn').innerText = "Stop Sharing";
-
-                    videoTrack.onended = () => toggleScreenShare(); // Handle manual "Stop Sharing" from browser
-                } catch (e) { console.error(e); }
-            } else {
-                // Switch back to camera
-                const videoTrack = localStream.getVideoTracks()[0];
-                for (let peerId in peers) {
-                    const sender = peers[peerId].peerConnection.getSenders().find(s => s.track.kind === 'video');
-                    sender.replaceTrack(videoTrack);
-                }
-                localVideo.srcObject = localStream;
-                screenStream.getTracks().forEach(t => t.stop());
-                screenStream = null;
-                document.getElementById('share-btn').innerText = "Share Screen";
+    function updateTracks(newTrack) {
+        Object.values(connections).forEach(c => {
+            if (c.call) {
+                const sender = c.call.peerConnection.getSenders().find(s => s.track.kind === 'video');
+                sender.replaceTrack(newTrack);
             }
-        }
+        });
+    }
 
-        // 6. Draggable UI Logic
-        function dragElement(elmnt) {
-            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-            elmnt.onmousedown = dragMouseDown;
+    // 7. Draggable Logic
+    function dragElement(e) {
+        let p1 = 0, p2 = 0, p3 = 0, p4 = 0;
+        e.onmousedown = (event) => {
+            p3 = event.clientX; p4 = event.clientY;
+            document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
+            document.onmousemove = (ev) => {
+                p1 = p3 - ev.clientX; p2 = p4 - ev.clientY;
+                p3 = ev.clientX; p4 = ev.clientY;
+                e.style.top = (e.offsetTop - p2) + "px"; e.style.left = (e.offsetLeft - p1) + "px";
+            };
+        };
+    }
 
-            function dragMouseDown(e) {
-                e.preventDefault();
-                pos3 = e.clientX;
-                pos4 = e.clientY;
-                document.onmouseup = closeDragElement;
-                document.onmousemove = elementDrag;
-            }
+    // Listen for Enter Key in Chat
+    msgInput.addEventListener("keypress", (e) => { if (e.key === "Enter") sendChatMessage(); });
+</script>
 
-            function elementDrag(e) {
-                e.preventDefault();
-                pos1 = pos3 - e.clientX;
-                pos2 = pos4 - e.clientY;
-                pos3 = e.clientX;
-                pos4 = e.clientY;
-                elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
-                elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
-            }
-
-            function closeDragElement() {
-                document.onmouseup = null;
-                document.onmousemove = null;
-            }
-        }
-    </script>
 </body>
 </html>

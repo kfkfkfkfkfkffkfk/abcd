@@ -1,385 +1,929 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Pro Video & Chat</title>
+
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
     <style>
+
         :root {
+
             --bg: #ffffff;
+
             --sidebar: #f2f2f7;
+
             --accent: #007aff;
+
             --text: #1c1c1e;
+
+            --danger: #ff3b30;
+
+            --success: #34c759;
+
+            --bubble-them: #e5e5ea;
+
+            --sidebar-width: 320px;
+
+            --sidebar-expanded-width: 700px;
+
         }
+
+
 
         body, html { 
+
             margin: 0; padding: 0; height: 100%; width: 100%;
-            font-family: -apple-system, system-ui, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            overflow: hidden;
-            display: flex;
+
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+            background: #000; color: var(--text); overflow: hidden; display: flex;
+
         }
 
-        /* --- Video Layout --- */
+
+
         #main-stage {
-            flex-grow: 1;
-            position: relative;
-            background: #111;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            padding: 10px;
-            overflow: hidden; /* Keeps things tidy */
+
+            flex-grow: 1; position: relative; background: #111;
+
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+
+            gap: 10px; padding: 10px; overflow: hidden;
+
+            margin-bottom: 80px;
+
         }
 
-        .remote-video { 
-            max-width: 100%; 
-            max-height: 100%; 
-            border-radius: 12px;
-            background: #222;
-            flex: 1 1 45%; 
-        }
 
-        /* Local Video (Self) */
-        #local-container {
-            position: absolute;
-            top: 20px; left: 20px; /* Default start */
-            width: 150px; aspect-ratio: 3/4;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
-            z-index: 100;
-            cursor: move;
-            background: #000;
-            border: 2px solid rgba(255,255,255,0.2);
-            touch-action: none; /* Prevents scrolling while dragging */
-        }
-        #local-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
-        /* --- Chat Sidebar Fixes --- */
+        /* --- SIDEBAR SYSTEM --- */
+
         #chat-sidebar {
-            width: 320px; /* Slightly wider for buttons */
-            min-width: 320px;
-            background: var(--sidebar);
-            display: flex;
+
+            width: var(--sidebar-width); 
+
+            background: var(--bg); 
+
+            display: flex; 
+
             flex-direction: column;
-            border-left: 1px solid #d1d1d6;
-            box-sizing: border-box; /* Ensures padding doesn't push it off screen */
+
+            border-left: 1px solid #d1d1d6; 
+
+            position: relative; 
+
+            z-index: 101;
+
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+
         }
 
-        #messages {
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+
+
+        #chat-sidebar.hidden {
+
+            transform: translateX(100%);
+
         }
 
-        /* Message Bubble Styling */
-        .msg-wrapper {
-            display: flex;
-            flex-direction: column;
-            max-width: 85%;
+
+
+        /* The Drag Handle */
+
+        #resizer {
+
+            width: 8px;
+
+            cursor: col-resize;
+
+            position: absolute;
+
+            left: -4px;
+
+            top: 0;
+
+            bottom: 0;
+
+            z-index: 102;
+
         }
+
+
+
+        /* Button to bring chat back */
+
+        #restore-chat {
+
+            position: fixed;
+
+            right: 10px;
+
+            top: 50%;
+
+            transform: translateY(-50%);
+
+            z-index: 100;
+
+            background: var(--accent);
+
+            width: 40px;
+
+            height: 40px;
+
+            border-radius: 50%;
+
+            display: none;
+
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+
+            border: none;
+
+            color: white;
+
+            cursor: pointer;
+
+        }
+
+
+
+        #local-container {
+
+            position: absolute; top: 20px; left: 20px; width: 220px; aspect-ratio: 16/9;
+
+            border-radius: 12px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+
+            z-index: 2000; cursor: grab; background: #000; border: 1px solid rgba(255,255,255,0.2); 
+
+            touch-action: none;
+
+        }
+
+        #local-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); pointer-events: none; }
+
+        .remote-video { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; background: #222; }
+
+
+
+        #messages { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 25px; background: #fff; }
+
+        
+
+        .id-system-msg { align-self: center; font-size: 13px; font-weight: 600; color: white; margin: 15px 0; background: var(--accent); padding: 8px 20px; border-radius: 20px; }
+
+        
+
+        .msg-wrapper { display: flex; flex-direction: column; max-width: 85%; position: relative; }
+
         .msg-wrapper.me { align-self: flex-end; align-items: flex-end; }
+
         .msg-wrapper.them { align-self: flex-start; align-items: flex-start; }
 
-        .msg-bubble {
-            padding: 10px 14px;
-            border-radius: 18px;
-            font-size: 0.9rem;
-            position: relative;
-            word-wrap: break-word;
-            width: fit-content;
-        }
+        
+
+        .bubble-container { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; }
+
+        .me .bubble-container { flex-direction: row-reverse; }
+
+
+
+        .msg-bubble { padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.4; word-wrap: break-word; min-width: 30px; }
+
         .me .msg-bubble { background: var(--accent); color: white; border-bottom-right-radius: 4px; }
-        .them .msg-bubble { background: #e5e5ea; color: black; border-bottom-left-radius: 4px; }
 
-        .msg-meta {
-            font-size: 0.65rem;
-            color: #8e8e93;
-            margin-top: 4px;
-            display: flex;
-            gap: 8px;
-        }
+        .them .msg-bubble { background: var(--bubble-them); color: black; border-bottom-left-radius: 4px; }
 
-        /* Reaction & Copy Buttons */
+        
+
+        /* --- EMOJI ACTION BUTTON SYSTEM --- */
+
         .msg-actions {
-            margin-top: 5px;
+
             display: flex;
-            gap: 5px;
-            opacity: 0.6;
-            transition: opacity 0.2s;
+
+            align-items: center;
+
+            background: rgba(255,255,255,0.97);
+
+            border: 1px solid #ddd;
+
+            border-radius: 20px;
+
+            padding: 3px 8px;
+
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+
+            position: relative;
+
+            flex-shrink: 0;
+
         }
-        .msg-wrapper:hover .msg-actions { opacity: 1; }
+
+
+
+        /* The emoji face trigger icon */
+
+        .emoji-trigger {
+
+            font-size: 16px;
+
+            cursor: pointer;
+
+            padding: 3px;
+
+            display: inline-flex;
+
+            align-items: center;
+
+            user-select: none;
+
+            flex-shrink: 0;
+
+        }
+
+
+
+        /* The sliding tray of emoji buttons */
+
+        .emoji-tray {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 1px;
+
+            max-width: 0;
+
+            overflow: hidden;
+
+            /* Smooth width animation */
+
+            transition: max-width 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+
+                        opacity 0.3s ease,
+
+                        padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+
+            opacity: 0;
+
+            white-space: nowrap;
+
+            pointer-events: none;
+
+        }
+
+
+
+        /* Open state — triggered by JS class */
+
+        .emoji-tray.open {
+
+            max-width: 1400px;
+
+            opacity: 1;
+
+            padding: 0 4px;
+
+            pointer-events: all;
+
+        }
+
+
+
         .action-btn {
-            background: none; border: none; cursor: pointer; padding: 2px;
-            font-size: 0.8rem; border-radius: 4px; color: #666;
-        }
-        .action-btn:hover { background: rgba(0,0,0,0.05); }
 
-        .reaction-badge {
-            font-size: 0.8rem;
-            background: white;
-            border-radius: 10px;
-            padding: 2px 6px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            margin-top: -8px;
-            z-index: 2;
+            background: none;
+
+            border: none;
+
+            cursor: pointer;
+
+            font-size: 19px;
+
+            padding: 3px 5px;
+
+            color: #333;
+
+            transition: transform 0.15s ease;
+
+            line-height: 1;
+
+            display: inline-flex;
+
+            align-items: center;
+
         }
 
-        .chat-input-area {
-            padding: 15px;
-            background: var(--bg);
+        .action-btn:hover { transform: scale(1.4); }
+
+
+
+        /* Divider between emoji tray and util buttons */
+
+        .util-btns {
+
             display: flex;
-            gap: 8px;
-            border-top: 1px solid #d1d1d6;
+
+            align-items: center;
+
+            border-left: 1px solid #eee;
+
+            margin-left: 4px;
+
+            padding-left: 6px;
+
+            flex-shrink: 0;
+
         }
 
-        /* --- Toolbar --- */
-        .toolbar {
-            position: absolute;
-            bottom: 20px; left: 50%;
-            transform: translateX(-50%);
-            display: flex; gap: 10px;
-            background: rgba(255,255,255,0.85);
-            backdrop-filter: blur(15px);
-            padding: 10px 20px;
-            border-radius: 30px;
-            z-index: 1000;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+
+
+        .msg-meta { font-size: 10px; color: #8e8e93; margin-top: 4px; display: flex; gap: 5px; align-items: center; }
+
+
+
+        .toolbar { 
+
+            position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); 
+
+            display: flex; gap: 10px; background: rgba(255,255,255,0.85); backdrop-filter: blur(15px); 
+
+            padding: 10px 20px; border-radius: 30px; z-index: 3000; align-items: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+
         }
 
-        button {
-            border: none; background: var(--accent); color: white;
-            padding: 8px 16px; border-radius: 18px;
-            font-weight: 600; cursor: pointer; font-size: 0.8rem;
-        }
-        button.alt { background: #444; }
-        button.stop { background: #ff3b30; }
+        .toolbar input { border: 1px solid #ccc; border-radius: 15px; padding: 5px 12px; width: 100px; outline: none; }
 
-        #status-bar {
-            position: absolute; top: 10px; left: 10px;
-            font-size: 0.7rem; color: #aaa; z-index: 10;
+        
+
+        button { border: none; color: white; padding: 8px 16px; border-radius: 18px; font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+
+        .btn-blue { background: var(--accent); }
+
+        .btn-red { background: var(--danger); }
+
+        .btn-green { background: var(--success); }
+
+        .btn-gray { background: #444; }
+
+
+
+        #custom-modal-overlay {
+
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+
+            background: rgba(0,0,0,0.6); display: none; justify-content: center;
+
+            align-items: center; z-index: 4000; backdrop-filter: blur(4px);
+
         }
+
+        #custom-modal { background: white; padding: 25px; border-radius: 20px; width: 300px; text-align: center; }
+
+
+
+        .chat-input-area { padding: 15px; background: #fff; display: flex; gap: 8px; border-top: 1px solid #d1d1d6; }
+
+        #chat-msg { flex: 1; border: 1px solid #d1d1d6; border-radius: 20px; padding: 8px 15px; outline: none; }
+
     </style>
+
 </head>
+
 <body>
 
-<div id="status-bar">ID: <span id="my-id">...</span></div>
+
+
+<div id="custom-modal-overlay">
+
+    <div id="custom-modal">
+
+        <h3 id="modal-title"></h3>
+
+        <p id="modal-desc"></p>
+
+        <input type="text" id="modal-input" style="display:none; width: 90%; padding: 10px; margin: 15px 0; border: 1px solid #ddd; border-radius: 10px;">
+
+        <div style="display: flex; gap: 10px; justify-content: center;">
+
+            <button class="btn-gray" onclick="closeModal()">Cancel</button>
+
+            <button class="btn-blue" id="modal-confirm" onclick="handleModalConfirm()">Confirm</button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
 
 <div id="main-stage"></div>
 
-<div id="local-container">
-    <video id="local-video" autoplay muted playsinline></video>
-</div>
+<div id="local-container"><video id="local-video" autoplay muted playsinline></video></div>
+
+
 
 <div class="toolbar">
-    <input type="text" id="friend-id-input" placeholder="Enter ID" style="border:1px solid #ccc; border-radius:15px; padding: 0 10px;">
-    <button onclick="startCall()">Connect</button>
-    <button id="screen-btn" class="alt" onclick="toggleScreen()">Share Screen</button>
+
+    <input type="text" id="friend-id-input" placeholder="Enter ID">
+
+    <button class="btn-blue" onclick="joinCall()">Connect</button>
+
+    <button class="btn-green" style="width:35px; border-radius:50%; padding:8px 0;" onclick="addNewPeer()">+</button>
+
+    <button id="btn-mute" class="btn-red" onclick="toggleMute()">Mute</button>
+
+    <button id="btn-video" class="btn-gray" onclick="toggleVideo()">Stop Video</button>
+
+    <button id="btn-screen" class="btn-blue" onclick="toggleScreen()">Share Screen</button>
+
+    <button class="btn-blue" onclick="showInviteModal()">Invite</button>
+
+    <button class="btn-red" onclick="showEndModal()">End</button>
+
 </div>
+
+
+
+<button id="restore-chat" onclick="toggleChat(true)">💬</button>
+
+
 
 <div id="chat-sidebar">
-    <div style="padding: 15px; font-weight: bold; border-bottom: 1px solid #ddd;">Chat</div>
-    <div id="messages"></div>
-    <div class="chat-input-area">
-        <input type="text" id="chat-msg" placeholder="Type a message...">
-        <button onclick="sendChatMessage()">Send</button>
+
+    <div id="resizer"></div>
+
+    <div style="padding: 15px; font-weight: bold; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between;">
+
+        Chat
+
+        <span style="cursor:pointer" onclick="toggleChat(false)">✕</span>
+
     </div>
+
+    <div id="messages"></div>
+
+    <div class="chat-input-area">
+
+        <input type="text" id="chat-msg" placeholder="Type a message...">
+
+        <button class="btn-blue" onclick="sendChatMessage()">Send</button>
+
+    </div>
+
 </div>
 
-<script>
-    const peer = new Peer();
-    let myStream, myScreen;
-    const connections = {}; 
 
-    const mainStage = document.getElementById('main-stage');
-    const localVideo = document.getElementById('local-video');
-    const msgInput = document.getElementById('chat-msg');
-    const msgContainer = document.getElementById('messages');
-    const screenBtn = document.getElementById('screen-btn');
+
+<script>
+
+    const peer = new Peer();
+
+    let myStream, myScreen, myId = null, modalAction = null;
+
+    const connections = {}, calls = {};
+
+    const sidebar = document.getElementById('chat-sidebar');
+
+    const resizer = document.getElementById('resizer');
+
+    const restoreBtn = document.getElementById('restore-chat');
+
+
+
+    // --- SIDEBAR RESIZING ---
+
+    let isResizing = false;
+
+    let baseSidebarWidth = 320;
+
+
+
+    resizer.addEventListener('mousedown', (e) => {
+
+        isResizing = true;
+
+        document.body.style.cursor = 'col-resize';
+
+    });
+
+
+
+    document.addEventListener('mousemove', (e) => {
+
+        if (!isResizing) return;
+
+        let newWidth = window.innerWidth - e.clientX;
+
+        if (newWidth < 150) { toggleChat(false); isResizing = false; return; }
+
+        if (newWidth > window.innerWidth * 0.8) newWidth = window.innerWidth * 0.8;
+
+        baseSidebarWidth = newWidth;
+
+        sidebar.style.width = newWidth + 'px';
+
+    });
+
+
+
+    document.addEventListener('mouseup', () => {
+
+        isResizing = false;
+
+        document.body.style.cursor = 'default';
+
+    });
+
+
+
+    function toggleChat(show) {
+
+        if (show) {
+
+            sidebar.classList.remove('hidden');
+
+            restoreBtn.style.display = 'none';
+
+        } else {
+
+            sidebar.classList.add('hidden');
+
+            restoreBtn.style.display = 'block';
+
+        }
+
+    }
+
+
+
+    // --- EMOJI TRAY LOGIC ---
+
+    // Track which tray is open and a collapse timer so rapid mouse movement doesn't flicker
+    let openTray = null;
+    let collapseTimer = null;
+
+
+
+    function openEmojiTray(tray, msgActionsEl) {
+
+        // Close any other open tray first
+
+        if (openTray && openTray !== tray) {
+
+            closeEmojiTray(openTray);
+
+        }
+
+        clearTimeout(collapseTimer);
+
+        openTray = tray;
+
+        tray.classList.add('open');
+
+
+
+        // Expand sidebar smoothly to fit all emojis
+
+        const needed = 950;
+
+        if (sidebar.offsetWidth < needed) {
+
+            const cap = Math.min(needed, window.innerWidth * 0.92);
+
+            sidebar.style.transition = 'width 0.35s cubic-bezier(0.4, 0, 0.2, 1)';
+
+            sidebar.style.width = cap + 'px';
+
+        }
+
+    }
+
+
+
+    function scheduleClose(tray) {
+
+        clearTimeout(collapseTimer);
+
+        collapseTimer = setTimeout(() => {
+
+            closeEmojiTray(tray);
+
+        }, 120);
+
+    }
+
+
+
+    function closeEmojiTray(tray) {
+
+        if (!tray) return;
+
+        tray.classList.remove('open');
+
+        if (openTray === tray) openTray = null;
+
+
+
+        // Return sidebar to its base width smoothly
+
+        sidebar.style.transition = 'width 0.35s cubic-bezier(0.4, 0, 0.2, 1)';
+
+        sidebar.style.width = baseSidebarWidth + 'px';
+
+    }
+
+
+
+    // --- WEBRTC LOGIC ---
 
     navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+
         myStream = stream;
-        localVideo.srcObject = stream;
+
+        document.getElementById('local-video').srcObject = stream;
+
     });
 
-    peer.on('open', id => document.getElementById('my-id').innerText = id);
 
-    peer.on('call', call => {
-        call.answer(myStream);
-        handleVideo(call);
+
+    peer.on('open', id => {
+
+        myId = id;
+
+        const msg = document.createElement('div');
+
+        msg.className = 'id-system-msg';
+
+        msg.innerText = `Your ID: ${id}`;
+
+        document.getElementById('messages').appendChild(msg);
+
     });
 
-    peer.on('connection', conn => {
-        setupChat(conn);
-    });
 
-    function startCall() {
-        const targetId = document.getElementById('friend-id-input').value;
-        if (!targetId) return;
-        handleVideo(peer.call(targetId, myStream));
-        setupChat(peer.connect(targetId));
-    }
 
-    function handleVideo(call) {
-        call.on('stream', remoteStream => {
-            let v = document.getElementById(`video-${call.peer}`);
-            if (!v) {
-                v = document.createElement('video');
-                v.id = `video-${call.peer}`;
-                v.className = 'remote-video';
-                v.autoplay = true; v.playsInline = true;
-                mainStage.appendChild(v);
-            }
-            v.srcObject = remoteStream;
-            if (!connections[call.peer]) connections[call.peer] = {};
-            connections[call.peer].call = call;
-        });
-        call.on('close', () => document.getElementById(`video-${call.peer}`)?.remove());
-    }
+    peer.on('call', call => { call.answer(myStream); handleCall(call); });
 
-    function setupChat(conn) {
-        if (!connections[conn.peer]) connections[conn.peer] = {};
-        connections[conn.peer].data = conn;
-        conn.on('data', data => {
-            if(data.type === 'chat') appendMessage(data.text, 'them');
-            if(data.type === 'reaction') handleIncomingReaction(data);
-        });
-    }
+    peer.on('connection', conn => setupChat(conn));
 
-    function sendChatMessage() {
-        const text = msgInput.value;
-        if (!text) return;
-        const msgData = { type: 'chat', text: text };
-        Object.values(connections).forEach(c => c.data?.send(msgData));
-        appendMessage(text, 'me');
-        msgInput.value = "";
-    }
+
 
     function appendMessage(text, side) {
-        const id = 'msg-' + Date.now();
+
+        const msgId = 'msg-' + Date.now();
+
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
+
         const wrapper = document.createElement('div');
+
         wrapper.className = `msg-wrapper ${side}`;
-        wrapper.id = id;
+
+
+
+        const emojiList = ['😭','⏰','📚','🌐','📆','🤔','😈','😂','👏','🖐','🎉','💧','🔮','😀','😆','👋','🧻','🔥','✨','🚀','💯'];
+
+        const emojiButtons = emojiList.map(e =>
+
+            `<button class="action-btn" data-emoji="${e}" title="${e}">${e}</button>`
+
+        ).join('');
+
+
 
         wrapper.innerHTML = `
-            <div class="msg-bubble">${text}</div>
-            <div class="msg-reaction-container" id="react-${id}"></div>
-            <div class="msg-meta">
-                <span>${time}</span>
-                <div class="msg-actions">
-                    <button class="action-btn" onclick="copyMsg('${text}')">📋 Copy</button>
-                    <button class="action-btn" onclick="sendReaction('${id}', '👍')">👍</button>
-                    <button class="action-btn" onclick="sendReaction('${id}', '❤️')">❤️</button>
-                    <button class="action-btn" onclick="sendReaction('${id}', '😂')">😂</button>
+
+            <div class="bubble-container">
+
+                <div class="msg-bubble" id="${msgId}">${text}</div>
+
+                <div class="msg-actions" data-msgid="${msgId}">
+
+                    <span class="emoji-trigger" title="React">😊</span>
+
+                    <div class="emoji-tray">
+
+                        ${emojiButtons}
+
+                    </div>
+
+                    <div class="util-btns">
+
+                        <button class="action-btn" onclick="copyMsg('${msgId}')" title="Copy">❐</button>
+
+                    </div>
+
                 </div>
+
             </div>
+
+            <div class="msg-meta"><span>${time}</span> <span id="re-${msgId}"></span></div>
+
         `;
-        msgContainer.appendChild(wrapper);
-        msgContainer.scrollTop = msgContainer.scrollHeight;
-    }
 
-    function copyMsg(text) {
-        navigator.clipboard.writeText(text);
-        alert("Message copied!");
-    }
 
-    function sendReaction(msgId, emoji) {
-        const reactData = { type: 'reaction', msgId: msgId, emoji: emoji };
-        Object.values(connections).forEach(c => c.data?.send(reactData));
-        showReaction(msgId, emoji);
-    }
 
-    function handleIncomingReaction(data) {
-        showReaction(data.msgId, data.emoji);
-    }
+        const msgActions = wrapper.querySelector('.msg-actions');
 
-    function showReaction(msgId, emoji) {
-        const container = document.getElementById(`react-${msgId}`);
-        if(container) {
-            container.innerHTML = `<span class="reaction-badge">${emoji}</span>`;
-        }
-    }
+        const tray = wrapper.querySelector('.emoji-tray');
 
-    async function toggleScreen() {
-        if (!myScreen) {
-            myScreen = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            const track = myScreen.getVideoTracks()[0];
-            localVideo.srcObject = myScreen;
-            screenBtn.innerText = "Stop Sharing";
-            screenBtn.classList.add('stop');
-            updateTracks(track);
-            track.onended = () => stopSharing();
-        } else { stopSharing(); }
-    }
 
-    function stopSharing() {
-        if (myScreen) { myScreen.getTracks().forEach(t => t.stop()); myScreen = null; }
-        localVideo.srcObject = myStream;
-        updateTracks(myStream.getVideoTracks()[0]);
-        screenBtn.innerText = "Share Screen";
-        screenBtn.classList.remove('stop');
-    }
 
-    function updateTracks(newTrack) {
-        Object.values(connections).forEach(c => {
-            const sender = c.call?.peerConnection.getSenders().find(s => s.track.kind === 'video');
-            if (sender) sender.replaceTrack(newTrack);
+        // Mouse enter on the whole msg-actions area (including emoji trigger) opens the tray
+
+        msgActions.addEventListener('mouseenter', () => {
+
+            openEmojiTray(tray, msgActions);
+
         });
+
+
+
+        // Mouse leave schedules close with a short delay so small gaps don't flicker
+
+        msgActions.addEventListener('mouseleave', () => {
+
+            scheduleClose(tray);
+
+        });
+
+
+
+        // Re-entering the tray itself cancels the scheduled close
+
+        tray.addEventListener('mouseenter', () => {
+
+            clearTimeout(collapseTimer);
+
+        });
+
+        tray.addEventListener('mouseleave', () => {
+
+            scheduleClose(tray);
+
+        });
+
+
+
+        // Clicking an emoji reacts and collapses tray immediately
+
+        tray.querySelectorAll('.action-btn').forEach(btn => {
+
+            btn.addEventListener('click', () => {
+
+                const emoji = btn.dataset.emoji;
+
+                reactTo(msgId, emoji);
+
+                clearTimeout(collapseTimer);
+
+                closeEmojiTray(tray);
+
+            });
+
+        });
+
+
+
+        document.getElementById('messages').appendChild(wrapper);
+
+        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+
     }
 
-    // --- Boundaries Logic for Dragging ---
-    const dragItem = document.getElementById("local-container");
-    let active = false, currentX = 0, currentY = 0, initialX, initialY, xOffset = 0, yOffset = 0;
 
-    document.addEventListener("mousedown", dragStart);
-    document.addEventListener("mouseup", dragEnd);
-    document.addEventListener("mousemove", drag);
 
-    function dragStart(e) {
-        if (e.target === dragItem || dragItem.contains(e.target)) {
-            initialX = e.clientX - xOffset;
-            initialY = e.clientY - yOffset;
-            active = true;
+    function reactTo(id, emoji) {
+
+        const el = document.getElementById('re-' + id);
+
+        if (el) {
+
+            el.innerText = emoji;
+
+            Object.values(connections).forEach(c => c.send({ type: 'react', id, emoji }));
+
         }
+
     }
 
-    function dragEnd() { active = false; }
 
-    function drag(e) {
-        if (active) {
-            e.preventDefault();
-            let newX = e.clientX - initialX;
-            let newY = e.clientY - initialY;
 
-            // Define boundaries
-            const bounds = mainStage.getBoundingClientRect();
-            const box = dragItem.getBoundingClientRect();
+    function sendChatMessage() {
 
-            // Check Left/Right
-            if (newX < 0) newX = 0;
-            if (newX + box.width > bounds.width) newX = bounds.width - box.width;
+        const text = document.getElementById('chat-msg').value;
 
-            // Check Top/Bottom
-            if (newY < 0) newY = 0;
-            if (newY + box.height > bounds.height) newY = bounds.height - box.height;
+        if (!text) return;
 
-            xOffset = newX;
-            yOffset = newY;
-            dragItem.style.transform = `translate3d(${newX}px, ${newY}px, 0)`;
-        }
+        Object.values(connections).forEach(c => c.send({ type: 'chat', text }));
+
+        appendMessage(text, 'me');
+
+        document.getElementById('chat-msg').value = "";
+
     }
 
-    msgInput.addEventListener("keypress", (e) => { if (e.key === "Enter") sendChatMessage(); });
+
+
+    function copyMsg(id) {
+
+        const el = document.getElementById(id);
+
+        navigator.clipboard.writeText(el.innerText);
+
+    }
+
+
+
+    function joinCall() {
+
+        const id = document.getElementById('friend-id-input').value;
+
+        if (!id) return;
+
+        handleCall(peer.call(id, myStream));
+
+        setupChat(peer.connect(id));
+
+    }
+
+
+
+    function handleCall(call) {
+
+        call.on('stream', stream => {
+
+            if (document.getElementById(`v-${call.peer}`)) return;
+
+            const v = document.createElement('video');
+
+            v.id = `v-${call.peer}`; v.className = 'remote-video';
+
+            v.srcObject = stream; v.autoplay = true; v.playsInline = true;
+
+            document.getElementById('main-stage').appendChild(v);
+
+        });
+
+    }
+
+
+
+    function setupChat(conn) {
+
+        connections[conn.peer] = conn;
+
+        conn.on('data', data => {
+
+            if (data.type === 'chat') appendMessage(data.text, 'them');
+
+            if (data.type === 'react') { const r = document.getElementById('re-' + data.id); if(r) r.innerText = data.emoji; }
+
+        });
+
+    }
+
+
+
+    function toggleMute() { 
+
+        const enabled = myStream.getAudioTracks()[0].enabled;
+
+        myStream.getAudioTracks()[0].enabled = !enabled;
+
+        document.getElementById('btn-mute').innerText = !enabled ? "Mute" : "Unmute";
+
+    }
+
+
+
+    function toggleVideo() { 
+
+        const enabled = myStream.getVideoTracks()[0].enabled;
+
+        myStream.getVideoTracks()[0].enabled = !enabled;
+
+        document.getElementById('btn-video').innerText = !enabled ? "Stop Video" : "Start Video";
+
+    }
+
+
+
+    function closeModal() { document.getElementById('custom-modal-overlay').style.display = "none"; }
+
+    document.getElementById('chat-msg').addEventListener("keypress", (e) => { if (e.key === "Enter") sendChatMessage(); });
+
 </script>
+
 </body>
+
 </html>
